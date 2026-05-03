@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>لوحة تحكم تك شوب</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: 'Cairo', sans-serif; background: #f4f4f4; padding: 20px; direction: rtl; }
+    .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    h2 { border-bottom: 3px solid #f59e0b; padding-bottom: 10px; color: #1f2937; margin-bottom: 20px; }
+    .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .form-group { margin-bottom: 15px; }
+    .full-width { grid-column: span 2; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; color: #4b5563; }
+    input, select, textarea { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; box-sizing: border-box; }
+    input[type="file"] { background: #fff; padding: 9px; border: 2px dashed #d1d5db; cursor: pointer; }
+    button { background: #f59e0b; color: black; border: none; padding: 12px 25px; cursor: pointer; font-weight: bold; border-radius: 8px; width: 100%; font-size: 16px; transition: 0.3s; }
+    button:hover { background: #e08e00; transform: translateY(-2px); }
+    button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+    table { width: 100%; border-collapse: collapse; margin-top: 30px; background: white; border-radius: 8px; overflow: hidden; }
+    th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
+    th { background: #f9fafb; color: #374151; }
+    .btn-delete { background: #ef4444; color: white; padding: 6px 12px; font-size: 13px; width: auto; }
+    .img-preview { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>➕ إضافة منتج جديد - تك شوب</h2>
+  <form id="productForm" class="grid-form">
+    <div class="form-group">
+      <label>كود المنتج (ID):</label>
+      <input type="text" id="p_id" placeholder="اتركه فارغاً للتوليد التلقائي">
+    </div>
+    <div class="form-group">
+      <label>الماركة (Brand):</label>
+      <input type="text" id="p_brand" placeholder="مثلاً: Anker" required>
+    </div>
+
+    <div class="form-group full-width">
+      <label>اسم المنتج:</label>
+      <input type="text" id="p_name" placeholder="اسم المنتج بالكامل" required>
+    </div>
+
+    <div class="form-group">
+      <label>القسم (Category):</label>
+      <select id="p_cat">
+        <optgroup label="الطاقة والشحن">
+          <option value="cable">🔌 كابل (Cable)</option>
+          <option value="charger">⚡ شاحن (Charger)</option>
+          <option value="power-bank">🔋 باور بانك (Power Bank)</option>
+          <option value="car-charger">🚗 شاحن سيارة</option>
+        </optgroup>
+        <optgroup label="الصوتيات">
+          <option value="earbuds">🎵 ايربودز (Earbuds)</option>
+          <option value="earphones">🎧 سماعة سلك (Earphones)</option>
+          <option value="headphone">🎧 سماعة رأس (Headphones)</option>
+          <option value="speakers">🔊 صبات وسماعات (Speakers)</option>
+        </optgroup>
+        <optgroup label="الحماية والساعات">
+          <option value="case">📱 جراب (Case)</option>
+          <option value="screen">🛡️ اسكرينة (Screen Protector)</option>
+          <option value="watch">⌚ ساعة سمارت (Smart Watch)</option>
+          <option value="watch-strap">🎫 سير ساعة (Strap)</option>
+        </optgroup>
+        <optgroup label="إضافات ذكية">
+          <option value="camera">📷 معدات تصوير (Camera Acc)</option>
+          <option value="gaming">🎮 اكسسوارات ألعاب (Gaming)</option>
+          <option value="storage">💾 كروت ميموري وفلاشات</option>
+          <option value="other">✨ أقسام أخرى</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>صور المنتج (اختر صورة أو أكثر):</label>
+      <input type="file" id="p_images" accept="image/*" multiple required>
+    </div>
+
+    <div class="form-group">
+      <label>السعر الحالي:</label>
+      <input type="number" id="p_price" required>
+    </div>
+    <div class="form-group">
+      <label>السعر القديم (اختياري):</label>
+      <input type="number" id="p_old">
+    </div>
+
+    <div class="form-group">
+      <label>شارة المنتج (Badge):</label>
+      <select id="p_badge">
+        <option value="">بدون</option>
+        <option value="sale">Sale (خصم)</option>
+        <option value="new">New (جديد)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>التقييم (1-5):</label>
+      <input type="number" id="p_rating" step="0.1" min="1" max="5" value="5">
+    </div>
+
+    <div class="form-group full-width">
+      <button type="submit" id="submitBtn">🚀 رفع الصور وحفظ المنتج</button>
+    </div>
+  </form>
+
+  <hr>
+
+  <h2>📦 المنتجات الموجودة حالياً</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>الكود</th>
+        <th>الاسم</th>
+        <th>القسم</th>
+        <th>السعر</th>
+        <th>إدارة</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://qqtybrshginwqbbyzupi.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxdHlicnNoZ2lud3FiYnl6dXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDUxNjAsImV4cCI6MjA5MzM4MTE2MH0.RnFCydYBN8iqCT6cjQ8QABo0QoO58qaHpmD5KIdgW44';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function checkAdminAccess() {
+    const enteredPass = prompt("برجاء إدخال كلمة مرور الإدارة:");
+    if (!enteredPass) { window.location.href = "index.html"; return; }
+
+    const { data, error } = await _supabase
+        .from('site_settings')
+        .select('key_value')
+        .eq('key_name', 'admin_password')
+        .maybeSingle(); // استخدام maybeSingle لتجنب الأخطاء إذا كان الجدول فارغاً
+
+    if (error) {
+        console.error("خطأ في قاعدة البيانات:", error.message);
+        alert("حدث خطأ أثناء الاتصال بالسيرفر");
+        return;
+    }
+
+    if (data && enteredPass === data.key_value) {
+        alert("تم تسجيل الدخول بنجاح");
+        // استكمل عملك هنا
+    } else {
+        alert("كلمة مرور خاطئة أو غير موجودة!");
+        window.location.href = "index.html";
+    }
+}
+checkAdminAccess();
+const form = document.getElementById('productForm');
+const tableBody = document.getElementById('tableBody');
+const submitBtn = document.getElementById('submitBtn');
+
+async function fetchItems() {
+  try {
+    const { data, error } = await _supabase.from('products').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    if (data) {
+      tableBody.innerHTML = data.map(p => `
+        <tr>
+          <td><b>${p.id}</b></td>
+          <td>${p.name}</td>
+          <td>${p.cat}</td>
+          <td>${p.price} ج</td>
+          <td><button class="btn-delete" onclick="deleteItem('${p.id}')">حذف 🗑️</button></td>
+        </tr>
+      `).join('');
+    }
+  } catch (err) {
+    console.error("خطأ في الجلب:", err.message);
+  }
+}
+
+form.onsubmit = async (e) => {
+  e.preventDefault();
+  
+  const files = document.getElementById('p_images').files;
+  const imagesArray = [];
+
+  submitBtn.innerHTML = '⏳ جاري الرفع...';
+  submitBtn.disabled = true;
+
+  try {
+    // 1. الرفع للـ Storage
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `uploads/${fileName}`;
+
+      const { error: uploadError } = await _supabase.storage
+        .from('product-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = _supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      imagesArray.push(publicUrlData.publicUrl);
+    }
+
+    // 2. تجهيز البيانات (مع توليد ID تلقائي إذا كان فارغاً)
+    const productId = document.getElementById('p_id').value.trim() || 'TECH-' + Math.floor(1000 + Math.random() * 9000);
+
+    const newProduct = {
+      id: productId,
+      brand: document.getElementById('p_brand').value,
+      name: document.getElementById('p_name').value,
+      cat: document.getElementById('p_cat').value,
+      price: parseFloat(document.getElementById('p_price').value),
+      old: document.getElementById('p_old').value ? parseFloat(document.getElementById('p_old').value) : null,
+      badge: document.getElementById('p_badge').value,
+      rating: parseFloat(document.getElementById('p_rating').value || 5),
+      images: imagesArray,
+      reviews: Math.floor(Math.random() * 50) + 10
+    };
+
+    // 3. الحفظ في الجدول
+    const { error: dbError } = await _supabase.from('products').insert([newProduct]);
+    if (dbError) throw dbError;
+
+    alert('✅ تم إضافة المنتج بنجاح!');
+    form.reset();
+    fetchItems();
+
+  } catch (err) {
+    alert('❌ خطأ: ' + (err.message || "تأكد من إعدادات الـ Storage"));
+    console.error(err);
+  } finally {
+    submitBtn.innerHTML = '🚀 رفع الصور وحفظ المنتج';
+    submitBtn.disabled = false;
+  }
+};
+
+window.deleteItem = async (id) => {
+  if (confirm('هل أنت متأكد من الحذف؟')) {
+    const { error } = await _supabase.from('products').delete().eq('id', id);
+    if (!error) fetchItems();
+  }
+};
+
+document.addEventListener("DOMContentLoaded", fetchItems);
+</script>
+</body>
+</html>
