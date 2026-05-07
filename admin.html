@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <title>لوحة تحكم تك شوب</title>
+  <title>لوحة تحكم تك شوب - تعديل المنتجات</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: 'Cairo', sans-serif; background: #f4f4f4; padding: 20px; direction: rtl; }
@@ -17,17 +17,22 @@
     button { background: #f59e0b; color: black; border: none; padding: 12px 25px; cursor: pointer; font-weight: bold; border-radius: 8px; width: 100%; font-size: 16px; transition: 0.3s; }
     button:hover { background: #e08e00; transform: translateY(-2px); }
     button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+    
+    /* أزرار إضافية */
+    .btn-edit { background: #3b82f6; color: white; padding: 6px 12px; font-size: 13px; width: auto; margin-left: 5px; }
+    .btn-delete { background: #ef4444; color: white; padding: 6px 12px; font-size: 13px; width: auto; }
+    .btn-cancel { background: #6b7280; color: white; margin-top: 10px; display: none; }
+
     table { width: 100%; border-collapse: collapse; margin-top: 30px; background: white; border-radius: 8px; overflow: hidden; }
     th, td { border: 1px solid #eee; padding: 12px; text-align: center; }
     th { background: #f9fafb; color: #374151; }
-    .btn-delete { background: #ef4444; color: white; padding: 6px 12px; font-size: 13px; width: auto; }
     .img-preview { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; }
   </style>
 </head>
 <body> 
 
 <div class="container">
-  <h2>➕ إضافة منتج جديد - تك شوب</h2>
+  <h2 id="formTitle">➕ إضافة منتج جديد - تك شوب</h2>
   <form id="productForm" class="grid-form">
     <div class="form-group">
       <label>كود المنتج (ID):</label>
@@ -74,8 +79,9 @@
     </div>
 
     <div class="form-group">
-      <label>صور المنتج (اختر صورة أو أكثر):</label>
-      <input type="file" id="p_images" accept="image/*" multiple required>
+      <label>صور المنتج (اختياري عند التعديل):</label>
+      <input type="file" id="p_images" accept="image/*" multiple>
+      <small id="imgNote" style="color: #666; display: none;">* اتركه فارغاً للحفاظ على الصور الحالية</small>
     </div>
 
     <div class="form-group">
@@ -102,6 +108,7 @@
 
     <div class="form-group full-width">
       <button type="submit" id="submitBtn">🚀 رفع الصور وحفظ المنتج</button>
+      <button type="button" id="cancelBtn" class="btn-cancel" onclick="resetFormState()">❌ إلغاء التعديل</button>
     </div>
   </form>
 
@@ -127,176 +134,170 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxdHlicnNoZ2lud3FiYnl6dXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDUxNjAsImV4cCI6MjA5MzM4MTE2MH0.RnFCydYBN8iqCT6cjQ8QABo0QoO58qaHpmD5KIdgW44';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function checkAdminAccess() {
-    const enteredPass = prompt("برجاء إدخال كلمة مرور الإدارة:");
-    if (!enteredPass) { window.location.href = "index.html"; return; }
+    let editMode = false;
+    let currentEditId = null;
+    let currentProductImages = []; // لتخزين روابط الصور القديمة في حال لم يتم تغييرها
 
-    const { data, error } = await _supabase
-        .from('site_settings')
-        .select('key_value')
-        .eq('key_name', 'admin_password')
-        .maybeSingle(); // استخدام maybeSingle لتجنب الأخطاء إذا كان الجدول فارغاً
+    // التحقق من الدخول (نفس الكود الأصلي)
+    async function checkAdminAccess() {
+        const enteredPass = prompt("برجاء إدخال كلمة مرور الإدارة:");
+        if (!enteredPass) { window.location.href = "index.html"; return; }
+        const { data, error } = await _supabase.from('site_settings').select('key_value').eq('key_name', 'admin_password').maybeSingle();
+        if (error || !data || enteredPass !== data.key_value) {
+            alert("كلمة مرور خاطئة!");
+            window.location.href = "index.html";
+        }
+    }
+    checkAdminAccess();
 
-    if (error) {
-        console.error("خطأ في قاعدة البيانات:", error.message);
-        alert("حدث خطأ أثناء الاتصال بالسيرفر");
-        return;
+    const form = document.getElementById('productForm');
+    const tableBody = document.getElementById('tableBody');
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const formTitle = document.getElementById('formTitle');
+
+    // جلب المنتجات
+    async function fetchItems() {
+      try {
+        const { data, error } = await _supabase.from('products').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        tableBody.innerHTML = data.map(p => `
+            <tr>
+              <td><b>${p.id}</b></td>
+              <td>${p.name}</td>
+              <td>${p.cat}</td>
+              <td>${p.price} ج</td>
+              <td>
+                <button class="btn-edit" onclick="editItem('${p.id}')">تعديل ✏️</button>
+                <button class="btn-delete" onclick="deleteItem('${p.id}')">حذف 🗑️</button>
+              </td>
+            </tr>
+          `).join('');
+      } catch (err) { console.error(err.message); }
     }
 
-    if (data && enteredPass === data.key_value) {
-        alert("تم تسجيل الدخول بنجاح");
-        // استكمل عملك هنا
-    } else {
-        alert("كلمة مرور خاطئة أو غير موجودة!");
-        window.location.href = "index.html";
-    }
-}
-checkAdminAccess();
-const form = document.getElementById('productForm');
-const tableBody = document.getElementById('tableBody');
-const submitBtn = document.getElementById('submitBtn');
+    // وظيفة بدء التعديل
+    window.editItem = async (id) => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        try {
+            const { data: p, error } = await _supabase.from('products').select('*').eq('id', id).single();
+            if (error) throw error;
 
-async function fetchItems() {
-  try {
-    const { data, error } = await _supabase.from('products').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    if (data) {
-      tableBody.innerHTML = data.map(p => `
-        <tr>
-          <td><b>${p.id}</b></td>
-          <td>${p.name}</td>
-          <td>${p.cat}</td>
-          <td>${p.price} ج</td>
-          <td><button class="btn-delete" onclick="deleteItem('${p.id}')">حذف 🗑️</button></td>
-        </tr>
-      `).join('');
-    }
-  } catch (err) {
-    console.error("خطأ في الجلب:", err.message);
-  }
-}
+            // تعبئة النموذج بالبيانات
+            document.getElementById('p_id').value = p.id;
+            document.getElementById('p_id').disabled = true; // منع تغيير الـ ID الأساسي
+            document.getElementById('p_brand').value = p.brand;
+            document.getElementById('p_name').value = p.name;
+            document.getElementById('p_cat').value = p.cat;
+            document.getElementById('p_price').value = p.price;
+            document.getElementById('p_old').value = p.old || '';
+            document.getElementById('p_badge').value = p.badge || '';
+            document.getElementById('p_rating').value = p.rating;
+            
+            // حفظ حالة الصور والوضع
+            currentProductImages = p.images || [];
+            editMode = true;
+            currentEditId = id;
 
-form.onsubmit = async (e) => {
-  e.preventDefault();
-  
-  const files = document.getElementById('p_images').files;
-  const imagesArray = [];
+            // تحديث واجهة النموذج
+            formTitle.innerText = "📝 تعديل المنتج: " + p.name;
+            submitBtn.innerText = "💾 حفظ التعديلات";
+            cancelBtn.style.display = "block";
+            document.getElementById('imgNote').style.display = "inline";
+            document.getElementById('p_images').required = false;
 
-  submitBtn.innerHTML = '⏳ جاري الرفع...';
-  submitBtn.disabled = true;
-
-  try {
-    // 1. الرفع للـ Storage
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `uploads/${fileName}`;
-
-      const { error: uploadError } = await _supabase.storage
-        .from('product-images')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = _supabase.storage
-        .from('product-images')
-        .getPublicUrl(filePath);
-
-      imagesArray.push(publicUrlData.publicUrl);
-    }
-
-    // 2. تجهيز البيانات (مع توليد ID تلقائي إذا كان فارغاً)
-    const productId = document.getElementById('p_id').value.trim() || 'TECH-' + Math.floor(1000 + Math.random() * 9000);
-
-    const newProduct = {
-      id: productId,
-      brand: document.getElementById('p_brand').value,
-      name: document.getElementById('p_name').value,
-      cat: document.getElementById('p_cat').value,
-      price: parseFloat(document.getElementById('p_price').value),
-      old: document.getElementById('p_old').value ? parseFloat(document.getElementById('p_old').value) : null,
-      badge: document.getElementById('p_badge').value,
-      rating: parseFloat(document.getElementById('p_rating').value || 5),
-      images: imagesArray,
-      reviews: Math.floor(Math.random() * 50) + 10
+        } catch (err) { alert("خطأ في جلب بيانات المنتج"); }
     };
 
-    // 3. الحفظ في الجدول
-    const { error: dbError } = await _supabase.from('products').insert([newProduct]);
-    if (dbError) throw dbError;
+    // إعادة النموذج لحالة الإضافة
+    function resetFormState() {
+        editMode = false;
+        currentEditId = null;
+        currentProductImages = [];
+        form.reset();
+        document.getElementById('p_id').disabled = false;
+        formTitle.innerText = "➕ إضافة منتج جديد - تك شوب";
+        submitBtn.innerText = "🚀 رفع الصور وحفظ المنتج";
+        cancelBtn.style.display = "none";
+        document.getElementById('imgNote').style.display = "none";
+        document.getElementById('p_images').required = true;
+    }
 
-    alert('✅ تم إضافة المنتج بنجاح!');
-    form.reset();
-    fetchItems();
+    // التعامل مع الإرسال (إضافة أو تعديل)
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const files = document.getElementById('p_images').files;
+      let imagesArray = [...currentProductImages]; // نبدأ بالصور الحالية إذا كان تعديل
 
-  } catch (err) {
-    alert('❌ خطأ: ' + (err.message || "تأكد من إعدادات الـ Storage"));
-    console.error(err);
-  } finally {
-    submitBtn.innerHTML = '🚀 رفع الصور وحفظ المنتج';
-    submitBtn.disabled = false;
-  }
-};
+      submitBtn.innerHTML = '⏳ جاري المعالجة...';
+      submitBtn.disabled = true;
 
-window.deleteItem = async (id) => {
-    if (!confirm('هل أنت متأكد؟')) return;
-
-    try {
-        // 1. نجيب بيانات المنتج
-        const { data: product, error: fetchError } = await _supabase
-            .from('products')
-            .select('images')
-            .eq('id', id)
-            .single();
-
-        if (fetchError) {
-            console.error("خطأ في جلب بيانات المنتج:", fetchError);
-            return;
-        }
-
-        // 2. حذف الصور
-        if (product.images && product.images.length > 0) {
-            // استخراج المسار الصحيح من الرابط
-            const filePaths = product.images.map(url => {
-                // سوبابيس بتستخدم نظام: .../public/product-images/uploads/file.jpg
-                // إحنا محتاجين اللي بعد اسم الباكت (product-images/)
-                const parts = url.split('product-images/');
-                return parts.length > 1 ? parts[1] : null;
-            }).filter(p => p !== null);
-
-            console.log("المسارات اللي هتتمسح:", filePaths);
-
-            if (filePaths.length > 0) {
-                const { error: storageError } = await _supabase.storage
-                    .from('product-images')
-                    .remove(filePaths);
-
-                if (storageError) {
-                    console.error("فشل حذف الصور من Storage:", storageError);
-                    alert("فشل حذف الصور، تأكد من صلاحيات الـ Storage Policies");
-                } else {
-                    console.log("تم حذف الصور بنجاح من Storage");
-                }
+      try {
+        // 1. رفع الصور الجديدة فقط إذا تم اختيار ملفات
+        if (files.length > 0) {
+            const newImages = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${file.name.split('.').pop()}`;
+                const { error: uploadError } = await _supabase.storage.from('product-images').upload(`uploads/${fileName}`, file);
+                if (uploadError) throw uploadError;
+                const { data: publicUrlData } = _supabase.storage.from('product-images').getPublicUrl(`uploads/${fileName}`);
+                newImages.push(publicUrlData.publicUrl);
             }
+            imagesArray = newImages; // في حال رفع صور جديدة، استبدل القديمة
         }
 
-        // 3. حذف السطر من الداتابيز
-        const { error: dbError } = await _supabase
-            .from('products')
-            .delete()
-            .eq('id', id);
+        const productData = {
+          brand: document.getElementById('p_brand').value,
+          name: document.getElementById('p_name').value,
+          cat: document.getElementById('p_cat').value,
+          price: parseFloat(document.getElementById('p_price').value),
+          old: document.getElementById('p_old').value ? parseFloat(document.getElementById('p_old').value) : null,
+          badge: document.getElementById('p_badge').value,
+          rating: parseFloat(document.getElementById('p_rating').value || 5),
+          images: imagesArray
+        };
 
-        if (dbError) throw dbError;
+        if (editMode) {
+            // تحديث
+            const { error: updateError } = await _supabase.from('products').update(productData).eq('id', currentEditId);
+            if (updateError) throw updateError;
+            alert('✅ تم تحديث المنتج بنجاح!');
+        } else {
+            // إضافة جديد
+            const productId = document.getElementById('p_id').value.trim() || 'TECH-' + Math.floor(1000 + Math.random() * 9000);
+            const { error: insertError } = await _supabase.from('products').insert([{...productData, id: productId, reviews: Math.floor(Math.random() * 50) + 10}]);
+            if (insertError) throw insertError;
+            alert('✅ تم إضافة المنتج بنجاح!');
+        }
 
-        alert('تم الحذف بنجاح');
+        resetFormState();
         fetchItems();
 
-    } catch (err) {
-        alert("حدث خطأ: " + err.message);
-    }
-};
-document.addEventListener("DOMContentLoaded", fetchItems);
+      } catch (err) {
+        alert('❌ خطأ: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        if(!editMode) submitBtn.innerHTML = '🚀 رفع الصور وحفظ المنتج';
+      }
+    };
+
+    // حذف المنتج (نفس الكود الأصلي)
+    window.deleteItem = async (id) => {
+        if (!confirm('هل أنت متأكد من الحذف؟')) return;
+        try {
+            const { data: product } = await _supabase.from('products').select('images').eq('id', id).single();
+            if (product?.images?.length > 0) {
+                const filePaths = product.images.map(url => url.split('product-images/')[1]).filter(p => p);
+                if (filePaths.length > 0) await _supabase.storage.from('product-images').remove(filePaths);
+            }
+            await _supabase.from('products').delete().eq('id', id);
+            alert('تم الحذف بنجاح');
+            fetchItems();
+        } catch (err) { alert("حدث خطأ أثناء الحذف"); }
+    };
+
+    document.addEventListener("DOMContentLoaded", fetchItems);
 </script>
 </body>
 </html>
