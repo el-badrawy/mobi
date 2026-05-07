@@ -24,7 +24,7 @@
     .img-preview { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; }
   </style>
 </head>
-<body>
+<body> 
 
 <div class="container">
   <h2>➕ إضافة منتج جديد - تك شوب</h2>
@@ -240,12 +240,62 @@ form.onsubmit = async (e) => {
 };
 
 window.deleteItem = async (id) => {
-  if (confirm('هل أنت متأكد من الحذف؟')) {
-    const { error } = await _supabase.from('products').delete().eq('id', id);
-    if (!error) fetchItems();
-  }
-};
+    if (!confirm('هل أنت متأكد؟')) return;
 
+    try {
+        // 1. نجيب بيانات المنتج
+        const { data: product, error: fetchError } = await _supabase
+            .from('products')
+            .select('images')
+            .eq('id', id)
+            .single();
+
+        if (fetchError) {
+            console.error("خطأ في جلب بيانات المنتج:", fetchError);
+            return;
+        }
+
+        // 2. حذف الصور
+        if (product.images && product.images.length > 0) {
+            // استخراج المسار الصحيح من الرابط
+            const filePaths = product.images.map(url => {
+                // سوبابيس بتستخدم نظام: .../public/product-images/uploads/file.jpg
+                // إحنا محتاجين اللي بعد اسم الباكت (product-images/)
+                const parts = url.split('product-images/');
+                return parts.length > 1 ? parts[1] : null;
+            }).filter(p => p !== null);
+
+            console.log("المسارات اللي هتتمسح:", filePaths);
+
+            if (filePaths.length > 0) {
+                const { error: storageError } = await _supabase.storage
+                    .from('product-images')
+                    .remove(filePaths);
+
+                if (storageError) {
+                    console.error("فشل حذف الصور من Storage:", storageError);
+                    alert("فشل حذف الصور، تأكد من صلاحيات الـ Storage Policies");
+                } else {
+                    console.log("تم حذف الصور بنجاح من Storage");
+                }
+            }
+        }
+
+        // 3. حذف السطر من الداتابيز
+        const { error: dbError } = await _supabase
+            .from('products')
+            .delete()
+            .eq('id', id);
+
+        if (dbError) throw dbError;
+
+        alert('تم الحذف بنجاح');
+        fetchItems();
+
+    } catch (err) {
+        alert("حدث خطأ: " + err.message);
+    }
+};
 document.addEventListener("DOMContentLoaded", fetchItems);
 </script>
 </body>

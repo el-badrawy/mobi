@@ -1,1 +1,187 @@
-const WHATSAPP_NUMBER="201505271071",SUPABASE_URL="https://qqtybrshginwqbbyzupi.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxdHlicnNoZ2lud3FiYnl6dXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDUxNjAsImV4cCI6MjA5MzM4MTE2MH0.RnFCydYBN8iqCT6cjQ8QABo0QoO58qaHpmD5KIdgW44",_supabase=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);let PRODUCTS=[],currentCategory="all",searchQuery="",cart=JSON.parse(localStorage.getItem("cart"))||{};async function loadProducts(){try{const{data:t,error:e}=await _supabase.from("products").select("*").order("created_at",{ascending:!1});if(e)throw e;if(t){PRODUCTS=t,renderProducts(),syncCartUI();const e=document.getElementById("totalStat");e&&(e.textContent=PRODUCTS.length)}}catch(t){}}function saveCart(){localStorage.setItem("cart",JSON.stringify(cart))}function syncCartUI(){const t=Object.values(cart).reduce(((t,e)=>t+e),0),e=document.getElementById("cartBadge");e&&(e.textContent=t,e.style.display=t>0?"flex":"none"),renderCartDrawer()}function renderCartDrawer(){const t=document.getElementById("cartBody"),e=document.getElementById("cartTotal"),n=document.getElementById("waBtn");if(!t)return;const a=Object.keys(cart);if(0===a.length)return t.innerHTML='\n      <div class="drawer-empty" style="text-align:center; padding:40px;">\n        <div style="font-size:3rem;">🛒</div>\n        السلة فارغة حالياً\n      </div>',e.textContent="٠ ج",void(n.disabled=!0);let o=0;t.innerHTML=a.map((t=>{const e=PRODUCTS.find((e=>e.id===t));if(!e)return"";const n=cart[t];o+=e.price*n;return`\n      <div class="cart-item">\n        <img src="${e.images&&e.images.length>0?e.images[0]:"https://via.placeholder.com/50"}" class="item-icon" alt="product">\n        <div class="item-info">\n          <div class="item-name">${e.name}</div>\n          <div class="item-sku">${e.id}</div>\n          <div class="item-price">${Number(e.price).toLocaleString("ar-EG")} ج</div>\n        </div>\n        <div class="item-controls">\n          <button class="qty-btn" onclick="window.changeQty('${t}', 1)">+</button>\n          <span class="qty-num">${n}</span>\n          <button class="qty-btn" onclick="window.changeQty('${t}', -1)">−</button>\n          <button class="remove-btn" onclick="window.removeFromCart('${t}')">🗑️</button>\n        </div>\n      </div>`})).join(""),e.textContent=o.toLocaleString("ar-EG")+" ج",n.disabled=!1,document.getElementById("waBtn").disabled=!1}window.renderProducts=function(){const t=document.getElementById("productsGrid");if(!t)return;const e=PRODUCTS.filter((t=>{const e="all"===currentCategory||t.cat===currentCategory,n=t.name.toLowerCase().includes(searchQuery)||t.cat&&t.cat.toLowerCase().includes(searchQuery)||t.id&&t.id.toString().toLowerCase().includes(searchQuery);return e&&n}));0!==e.length?t.innerHTML=e.map((t=>{const e=t.images&&t.images.length>0?t.images:["https://via.placeholder.com/150?text=No+Image"];return`\n      <div class="prod-card">\n        <div class="prod-img">\n          ${`\n      <div class="product-slider-container">\n        <div class="product-slider" id="slider-${t.id}" onscroll="updateDots('${t.id}')">\n          ${e.map((t=>`<img src="${t}" class="slider-img" loading="lazy">`)).join("")}\n        </div>\n        ${e.length>1?`\n          <button class="slider-btn prev" onclick="event.stopPropagation(); moveSlider('${t.id}', -1)">❮</button>\n          <button class="slider-btn next" onclick="event.stopPropagation(); moveSlider('${t.id}', 1)">❯</button>\n          <div class="slider-dots" id="dots-${t.id}">\n            ${e.map(((t,e)=>`<span class="dot ${0===e?"active":""}"></span>`)).join("")}\n          </div>\n        `:""}\n      </div>\n    `}\n          ${t.badge?`<span class="prod-badge badge-${t.badge}">${"new"===t.badge?"جديد":"خصم"}</span>`:""}\n          <span class="prod-sku">${t.id}</span>\n        </div>\n        <div class="prod-info">\n          <div class="prod-meta">\n            <span class="prod-brand">${t.brand||"Tech Shop"}</span>\n          </div>\n          <div class="prod-name">${t.name}</div>\n          <div class="prod-rate">${"★".repeat(Math.round(t.rating||5))}${"☆".repeat(5-Math.round(t.rating||5))}</div>\n          <div class="prod-price">\n            <div>\n              <div class="price-val">${Number(t.price).toLocaleString("ar-EG")} ج</div>\n              ${t.old?`<div class="price-old">${Number(t.old).toLocaleString("ar-EG")} ج</div>`:""}\n            </div>\n            <button class="add-btn" onclick="addToCart('${t.id}')">إضافة 🛒</button>\n          </div>\n        </div>\n      </div>`})).join(""):t.innerHTML='<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #888; font-size: 1.2rem;">لم يتم العثور على منتجات مطابقة للبحث أو في هذا القسم.</div>'},window.filterProducts=t=>{currentCategory=t;const e=document.getElementById("productsTitle");e&&(e.innerHTML="all"===t?"منتجات <span>مميزة</span>":`قسم <span>${t}</span>`),window.renderProducts(),document.getElementById("products").scrollIntoView({behavior:"smooth"})},window.moveSlider=(t,e)=>{const n=document.getElementById(`slider-${t}`);if(!n)return;const a=n.offsetWidth,o=n.scrollLeft,r=n.scrollWidth-n.offsetWidth;1===e&&Math.abs(o)>=r-5?n.scrollTo({left:0,behavior:"smooth"}):-1===e&&Math.abs(o)<=5?n.scrollTo({left:-r,behavior:"smooth"}):n.scrollBy({left:-e*a,behavior:"smooth"})},window.updateDots=t=>{const e=document.getElementById(`slider-${t}`),n=document.getElementById(`dots-${t}`);if(!e||!n)return;const a=Math.round(Math.abs(e.scrollLeft)/e.offsetWidth);n.querySelectorAll(".dot").forEach(((t,e)=>{t.classList.toggle("active",e===a)}))},window.openCart=()=>{document.getElementById("cartDrawer").classList.add("open"),document.getElementById("overlay").classList.add("open")},window.closeCart=()=>{document.getElementById("cartDrawer").classList.remove("open"),document.getElementById("overlay").classList.remove("open")},window.addToCart=t=>{cart[t]=(cart[t]||0)+1,saveCart(),syncCartUI(),window.openCart()},window.removeFromCart=t=>{delete cart[t],saveCart(),syncCartUI()},window.changeQty=(t,e)=>{cart[t]&&(cart[t]+=e,cart[t]<=0&&delete cart[t],saveCart(),syncCartUI())},window.orderOnWhatsApp=()=>{const t=Object.keys(cart);if(0===t.length)return void alert("السلة فارغة!");const e=document.getElementById("custName"),n=document.getElementById("custPhone"),a=document.getElementById("custAddress"),o=e?e.value.trim():"",r=n?n.value.trim():"",d=a?a.value.trim():"";if(!o||!r||!d)return void alert("برجاء ملء بيانات التوصيل (الاسم، الهاتف، العنوان) داخل السلة أولاً");let s="*طلب جديد من موبي شوب* 🛒\n";s+="━━━━━━━━━━━━━━━━━━━\n",s+=`👤 *العميل:* ${o}\n`,s+=`📞 *الهاتف:* ${r}\n`,s+=`📍 *العنوان:* ${d}\n`,s+="━━━━━━━━━━━━━━━━━━━\n\n";let c=0;t.forEach((t=>{const e=PRODUCTS.find((e=>e.id===t));if(e){const n=cart[t],a=e.price*n;c+=a,s+=`• *${e.name}*\n`,s+=`  الكود: ${e.id}\n`,s+=`  الكمية: ${n} | السعر: ${a} ج\n\n`}})),s+="━━━━━━━━━━━━━━━━━━━\n",s+=`*الإجمالي النهائي: ${c} ج*`;const i=`https://wa.me/201505271071?text=${encodeURIComponent(s)}`;window.open(i,"_blank")};const searchInputEl=document.getElementById("searchInput");searchInputEl&&searchInputEl.addEventListener("input",(t=>{searchQuery=t.target.value.toLowerCase().trim(),window.renderProducts()})),document.addEventListener("DOMContentLoaded",(()=>{loadProducts(),document.addEventListener("DOMContentLoaded",(()=>{loadProducts()}))}));
+const WHATSAPP_NUMBER = "201505271071",
+  SUPABASE_URL = "https://qqtybrshginwqbbyzupi.supabase.co",
+  SUPABASE_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxdHlicnNoZ2lud3FiYnl6dXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDUxNjAsImV4cCI6MjA5MzM4MTE2MH0.RnFCydYBN8iqCT6cjQ8QABo0QoO58qaHpmD5KIdgW44",
+  _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let PRODUCTS = [],
+  currentCategory = "all",
+  searchQuery = "",
+  cart = JSON.parse(localStorage.getItem("cart")) || {};
+async function loadProducts() {
+  try {
+    const { data: t, error: e } = await _supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: !1 });
+    if (e) throw e;
+    if (t) {
+      ((PRODUCTS = t), renderProducts(), syncCartUI());
+      const e = document.getElementById("totalStat");
+      e && (e.textContent = PRODUCTS.length);
+    }
+  } catch (t) {}
+}
+function saveCart() {
+  localStorage.setItem("cart", JSON.stringify(cart));
+}
+function syncCartUI() {
+  const t = Object.values(cart).reduce((t, e) => t + e, 0),
+    e = document.getElementById("cartBadge");
+  (e && ((e.textContent = t), (e.style.display = t > 0 ? "flex" : "none")),
+    renderCartDrawer());
+}
+function renderCartDrawer() {
+  const t = document.getElementById("cartBody"),
+    e = document.getElementById("cartTotal"),
+    n = document.getElementById("waBtn");
+  if (!t) return;
+  const a = Object.keys(cart);
+  if (0 === a.length)
+    return (
+      (t.innerHTML =
+        '\n      <div class="drawer-empty" style="text-align:center; padding:40px;">\n        <div style="font-size:3rem;">🛒</div>\n        السلة فارغة حالياً\n      </div>'),
+      (e.textContent = "٠ ج"),
+      void (n.disabled = !0)
+    );
+  let o = 0;
+  ((t.innerHTML = a
+    .map((t) => {
+      const e = PRODUCTS.find((e) => e.id === t);
+      if (!e) return "";
+      const n = cart[t];
+      o += e.price * n;
+      return `\n      <div class="cart-item">\n        <img src="${e.images && e.images.length > 0 ? e.images[0] : "https://via.placeholder.com/50"}" class="item-icon" alt="product">\n        <div class="item-info">\n          <div class="item-name">${e.name}</div>\n          <div class="item-sku">${e.id}</div>\n          <div class="item-price">${Number(e.price).toLocaleString("ar-EG")} ج</div>\n        </div>\n        <div class="item-controls">\n          <button class="qty-btn" onclick="window.changeQty('${t}', 1)">+</button>\n          <span class="qty-num">${n}</span>\n          <button class="qty-btn" onclick="window.changeQty('${t}', -1)">−</button>\n          <button class="remove-btn" onclick="window.removeFromCart('${t}')">🗑️</button>\n        </div>\n      </div>`;
+    })
+    .join("")),
+    (e.textContent = o.toLocaleString("ar-EG") + " ج"),
+    (n.disabled = !1),
+    (document.getElementById("waBtn").disabled = !1));
+}
+((window.renderProducts = function () {
+  const t = document.getElementById("productsGrid");
+  if (!t) return;
+  const e = PRODUCTS.filter((t) => {
+    const e = "all" === currentCategory || t.cat === currentCategory,
+      n =
+        t.name.toLowerCase().includes(searchQuery) ||
+        (t.cat && t.cat.toLowerCase().includes(searchQuery)) ||
+        (t.id && t.id.toString().toLowerCase().includes(searchQuery));
+    return e && n;
+  });
+  0 !== e.length
+    ? (t.innerHTML = e
+        .map((t) => {
+          const e =
+            t.images && t.images.length > 0
+              ? t.images
+              : ["https://via.placeholder.com/150?text=No+Image"];
+          return `\n      <div class="prod-card">\n        <div class="prod-img">\n          ${`\n      <div class="product-slider-container">\n        <div class="product-slider" id="slider-${t.id}" onscroll="updateDots('${t.id}')">\n          ${e.map((t) => `<img src="${t}" class="slider-img" loading="lazy">`).join("")}\n        </div>\n        ${e.length > 1 ? `\n          <button class="slider-btn prev" onclick="event.stopPropagation(); moveSlider('${t.id}', -1)">❮</button>\n          <button class="slider-btn next" onclick="event.stopPropagation(); moveSlider('${t.id}', 1)">❯</button>\n          <div class="slider-dots" id="dots-${t.id}">\n            ${e.map((t, e) => `<span class="dot ${0 === e ? "active" : ""}"></span>`).join("")}\n          </div>\n        ` : ""}\n      </div>\n    `}\n          ${t.badge ? `<span class="prod-badge badge-${t.badge}">${"new" === t.badge ? "جديد" : "خصم"}</span>` : ""}\n          <span class="prod-sku">${t.id}</span>\n        </div>\n        <div class="prod-info">\n          <div class="prod-meta">\n            <span class="prod-brand">${t.brand || "Tech Shop"}</span>\n          </div>\n          <div class="prod-name">${t.name}</div>\n          <div class="prod-rate">${"★".repeat(Math.round(t.rating || 5))}${"☆".repeat(5 - Math.round(t.rating || 5))}</div>\n          <div class="prod-price">\n            <div>\n              <div class="price-val">${Number(t.price).toLocaleString("ar-EG")} ج</div>\n              ${t.old ? `<div class="price-old">${Number(t.old).toLocaleString("ar-EG")} ج</div>` : ""}\n            </div>\n            <button class="add-btn" onclick="addToCart('${t.id}')">إضافة 🛒</button>\n          </div>\n        </div>\n      </div>`;
+        })
+        .join(""))
+    : (t.innerHTML =
+        '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #888; font-size: 1.2rem;">لم يتم العثور على منتجات مطابقة للبحث أو في هذا القسم.</div>');
+}),
+  (window.filterProducts = (t) => {
+    currentCategory = t;
+    const e = document.getElementById("productsTitle");
+    (e &&
+      (e.innerHTML =
+        "all" === t ? "منتجات <span>مميزة</span>" : `قسم <span>${t}</span>`),
+      window.renderProducts(),
+      document
+        .getElementById("products")
+        .scrollIntoView({ behavior: "smooth" }));
+  }),
+  (window.moveSlider = (t, e) => {
+    const n = document.getElementById(`slider-${t}`);
+    if (!n) return;
+    const a = n.offsetWidth,
+      o = n.scrollLeft,
+      r = n.scrollWidth - n.offsetWidth;
+    1 === e && Math.abs(o) >= r - 5
+      ? n.scrollTo({ left: 0, behavior: "smooth" })
+      : -1 === e && Math.abs(o) <= 5
+        ? n.scrollTo({ left: -r, behavior: "smooth" })
+        : n.scrollBy({ left: -e * a, behavior: "smooth" });
+  }),
+  (window.updateDots = (t) => {
+    const e = document.getElementById(`slider-${t}`),
+      n = document.getElementById(`dots-${t}`);
+    if (!e || !n) return;
+    const a = Math.round(Math.abs(e.scrollLeft) / e.offsetWidth);
+    n.querySelectorAll(".dot").forEach((t, e) => {
+      t.classList.toggle("active", e === a);
+    });
+  }),
+  (window.openCart = () => {
+    (document.getElementById("cartDrawer").classList.add("open"),
+      document.getElementById("overlay").classList.add("open"));
+  }),
+  (window.closeCart = () => {
+    (document.getElementById("cartDrawer").classList.remove("open"),
+      document.getElementById("overlay").classList.remove("open"));
+  }),
+  (window.addToCart = (t) => {
+    ((cart[t] = (cart[t] || 0) + 1),
+      saveCart(),
+      syncCartUI(),
+      window.openCart());
+  }),
+  (window.removeFromCart = (t) => {
+    (delete cart[t], saveCart(), syncCartUI());
+  }),
+  (window.changeQty = (t, e) => {
+    cart[t] &&
+      ((cart[t] += e),
+      cart[t] <= 0 && delete cart[t],
+      saveCart(),
+      syncCartUI());
+  }),
+  (window.orderOnWhatsApp = () => {
+    const t = Object.keys(cart);
+    if (0 === t.length) return void alert("السلة فارغة!");
+    const e = document.getElementById("custName"),
+      n = document.getElementById("custPhone"),
+      a = document.getElementById("custAddress"),
+      o = e ? e.value.trim() : "",
+      r = n ? n.value.trim() : "",
+      d = a ? a.value.trim() : "";
+    if (!o || !r || !d)
+      return void alert(
+        "برجاء ملء بيانات التوصيل (الاسم، الهاتف، العنوان) داخل السلة أولاً",
+      );
+    let s = "*طلب جديد من موبي شوب* 🛒\n";
+    ((s += "━━━━━━━━━━━━━━━━━━━\n"),
+      (s += `👤 *العميل:* ${o}\n`),
+      (s += `📞 *الهاتف:* ${r}\n`),
+      (s += `📍 *العنوان:* ${d}\n`),
+      (s += "━━━━━━━━━━━━━━━━━━━\n\n"));
+    let c = 0;
+    (t.forEach((t) => {
+      const e = PRODUCTS.find((e) => e.id === t);
+      if (e) {
+        const n = cart[t],
+          a = e.price * n;
+        ((c += a),
+          (s += `• *${e.name}*\n`),
+          (s += `  الكود: ${e.id}\n`),
+          (s += `  الكمية: ${n} | السعر: ${a} ج\n\n`));
+      }
+    }),
+      (s += "━━━━━━━━━━━━━━━━━━━\n"),
+      (s += `*الإجمالي النهائي: ${c} ج*`));
+    const i = `https://wa.me/201505271071?text=${encodeURIComponent(s)}`;
+    window.open(i, "_blank");
+  }));
+const searchInputEl = document.getElementById("searchInput");
+(searchInputEl &&
+  searchInputEl.addEventListener("input", (t) => {
+    ((searchQuery = t.target.value.toLowerCase().trim()),
+      window.renderProducts());
+  }),
+  document.addEventListener("DOMContentLoaded", () => {
+    (loadProducts(),
+      document.addEventListener("DOMContentLoaded", () => {
+        loadProducts();
+      }));
+  }));
